@@ -1,6 +1,6 @@
 # Release validation
 
-MIT license, copyright 2026 Arjun Badola. Intended public repository:
+MIT license, copyright 2026 Arjun Badola. Public repository:
 https://github.com/pikabell/sysmon. This is a source release; no package-registry
 upload is part of this work.
 
@@ -67,10 +67,21 @@ as UID 10001. These share the host Linux kernel; they do not test separate kerne
 | Fedora 43 | 3.14.7 | Passed |
 | Alpine 3.21 (musl) | 3.12.15 | Passed |
 
+The final source and installed Python 3.10 base wheel passed **42 tests**, including
+all eight panels, dialog workflows, startup settings, unknown job timestamps and
+the lifecycle/rendering fixes. Real CLI exports were checked for redaction, private
+permissions and overwrite prevention. Static checks and clean archive/license
+metadata checks passed. Fixture screenshots were visually reviewed.
+
 ## CI
 
 `.github/workflows/test.yml` checks Python 3.10–3.14 on Ubuntu, native Ubuntu ARM64,
 five distribution base installs, static correctness and isolated wheel installs.
+All **13 jobs** passed in [the public validation run](https://github.com/pikabell/sysmon/actions/runs/38046908825)
+for source commit `9c8c764`. Each matrix job ran the final 42-test suite; Python
+jobs additionally ran live source, layout and navigation checks. Native ARM64 was
+verified as `aarch64`, Python 3.12.15, kernel 6.17.0-1022-azure, independently of
+the development host. The workflow now uses current official v7 actions.
 Reproduce a distribution gate with:
 
 ```sh

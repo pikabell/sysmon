@@ -1,5 +1,7 @@
 # sysmon
 
+[![Linux compatibility](https://github.com/pikabell/sysmon/actions/workflows/test.yml/badge.svg)](https://github.com/pikabell/sysmon/actions/workflows/test.yml)
+
 A **read-only Linux terminal monitor** for CPU, RAM, processes, GPUs, network,
 disk activity, storage capacity, resource pressure and cgroup limits.
 No root privileges, process controls, background daemon or network service.
@@ -23,8 +25,17 @@ The base package has no native extensions and needs no compiler, CUDA SDK,
 NVIDIA utilities, systemd or particular distribution package manager.
 
 ```sh
+git clone https://github.com/pikabell/sysmon.git
+cd sysmon
 uv sync
 uv run sysmon
+```
+
+Or install the public source directly onto your PATH:
+
+```sh
+uv tool install git+https://github.com/pikabell/sysmon.git
+sysmon
 ```
 
 Or use standard Python:
@@ -162,8 +173,9 @@ Locally tested: Ubuntu 24.04 x86-64, Python 3.10–3.14, unprivileged, with and
 without psutil, plus four NVIDIA Quadro RTX 5000s. Base installs and metric/UI tests
 also pass in Ubuntu 22.04/24.04, Debian 12, Fedora 43 and Alpine 3.21 containers.
 These share the host kernel. AMD/Intel sysfs, missing values, guest time and PID
-reuse have fixture tests. ARM64 Alpine also passes under QEMU emulation; native
-ARM64 CI remains configured. CI repeats the compatibility gates. See [RELEASE.md](RELEASE.md).
+reuse have fixture tests. Native Ubuntu ARM64 also passed all 42 regression/UI tests
+in GitHub Actions. CI checks Python 3.10–3.14, five distribution images, static checks
+and isolated wheel installs. See [RELEASE.md](RELEASE.md).
 
 ## Settings and exports
 

@@ -7,9 +7,13 @@ compiler or GPU hardware is required for the base application.
 ## Source checkout
 
 ```sh
+git clone https://github.com/pikabell/sysmon.git
+cd sysmon
 uv sync
 uv run sysmon
 ```
+
+To install the public source directly: `uv tool install git+https://github.com/pikabell/sysmon.git`.
 
 To install on your PATH in an isolated environment:
 
