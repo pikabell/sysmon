@@ -12,6 +12,10 @@ numeric values and recent CPU/RAM history. Unknown metrics show `n/a`, `-` or `?
 System uptime stays in the header. GPU jobs show full local process start times
 beside their PID. All monitoring runs as a regular user.
 
+Overview cards keep the same height as samples change, including when traffic or
+process activity goes idle. Two reserved notice rows show threshold warnings;
+`n` opens the complete list. GPU summaries show up to four devices; `4` shows all.
+
 ![Overview with synthetic example data](docs/overview-150.svg)
 
 [80-column preview](docs/overview-80.svg). Previews use reproducible fixture data.
@@ -78,6 +82,7 @@ sysmon --export report.json  # private JSON snapshot; commands omitted
 | `g` | Toggle compute-only GPU processes |
 | Enter / `d` | Inspect selected process or GPU job |
 | `H` | Expand session history and select a metric |
+| `n` | Open all overview threshold notices |
 | `i` | Explain metrics in the current panel |
 | `,` | Save refresh interval, default panel, theme, hidden interfaces and thresholds |
 | `e` | Export a fresh JSON snapshot |
@@ -86,6 +91,7 @@ sysmon --export report.json  # private JSON snapshot; commands omitted
 
 Digits and arrows edit text while the filter is focused. Header clicks sort tables.
 Filtering matches PID, user, command, state and displayed start time.
+Sort, filter and GPU-kind changes apply immediately to the current sample.
 
 ## Metric definitions
 

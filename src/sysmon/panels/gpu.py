@@ -293,6 +293,8 @@ class GPUPanel(Panel):
         self.compute_only = not self.compute_only
         if self._sync is not None:
             self._sync.invalidate()
+            if self._latest is not None:
+                self.apply(self._latest)
 
     def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
         # The GPU process table is ordered by VRAM; ignore header clicks.

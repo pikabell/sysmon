@@ -228,6 +228,7 @@ class ProcessesPanel(Panel):
         self._last_resort = 0.0
         if self._sync is not None:
             self._sync.invalidate()
+            self.apply(self._latest)
 
     def apply_filter(self, value: str) -> None:
         self.filter_text = value

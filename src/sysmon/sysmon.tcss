@@ -104,6 +104,10 @@ Screen {
     padding: 0 1;
 }
 
+#overview-scroll {
+    scrollbar-gutter: stable;
+}
+
 #overview-scroll, #mem-scroll, #cpu-scroll {
     height: 1fr;
     scrollbar-size-vertical: 1;

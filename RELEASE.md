@@ -67,11 +67,30 @@ as UID 10001. These share the host Linux kernel; they do not test separate kerne
 | Fedora 43 | 3.14.7 | Passed |
 | Alpine 3.21 (musl) | 3.12.15 | Passed |
 
-The final source and installed Python 3.10 base wheel passed **42 tests**, including
+The initial release source and installed Python 3.10 base wheel passed **42 tests**, including
 all eight panels, dialog workflows, startup settings, unknown job timestamps and
 the lifecycle/rendering fixes. Real CLI exports were checked for redaction, private
 permissions and overwrite prevention. Static checks and clean archive/license
 metadata checks passed. Fixture screenshots were visually reviewed.
+
+### Home refresh audit
+
+Changing active-process, interface and warning counts resized overview cards on
+each sample, moving everything below them and clamping the scroll position.
+Cards now reserve their height, including missing-counter states, and the notice
+area reserves two rows. `n` opens every notice; additional GPUs remain on panel 4.
+Rendering uses the actual content width with a reserved scrollbar gutter.
+Process sorting/filtering and the GPU-kind toggle now apply to the current sample
+immediately, rather than waiting for the next configured refresh.
+
+All **47 tests** passed from source on Python 3.14 and against a fresh Python 3.10
+base wheel outside the checkout, without psutil. New tests vary idle/busy samples,
+ten warnings, twelve GPUs, missing counters, estimated memory and Unicode labels
+across ten widths, and check scroll preservation and immediate table updates.
+Five fresh live samples with changing CPU values kept the same layout and scroll
+position under UID 1000. Live source comparisons, rendered layouts, eight-panel
+navigation, static checks and the lockfile check also passed. Overview previews
+were regenerated with safe fixture data and visually reviewed.
 
 ## CI
 

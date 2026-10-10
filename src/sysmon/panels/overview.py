@@ -18,7 +18,6 @@ from ..core.render import (
     human_bytes,
     human_rate,
     sparkline,
-    human_duration,
 )
 from ..sources.summary import (
     SystemSummary,
@@ -30,6 +29,7 @@ from ..sources.summary import (
 
 MEDIUM = 110
 WIDE = 146
+CARD_HEIGHT = 8  # Six content rows and two borders, independent of live values.
 SEVERITY = {1: ("▲", "bold red"), 2: ("•", "yellow"), 3: ("·", "grey62")}
 
 
@@ -97,13 +97,12 @@ class OverviewPanel(Panel):
         self._redraw()
 
     def on_resize(self) -> None:
-        self._redraw()
+        self.call_after_refresh(self._redraw)
 
     def _redraw(self) -> None:
         if self.last_summary is not None and self.is_mounted:
-            self.query_one("#overview-body", Static).update(
-                self._view(self.last_summary)
-            )
+            body = self.query_one("#overview-body", Static)
+            body.update(self._view(self.last_summary, body.content_size.width or None))
 
     def _render_section(self, builder, label: str, width: int = 46) -> str:
         from rich.console import Console
@@ -132,8 +131,10 @@ class OverviewPanel(Panel):
         text.truncate(max(1, width), overflow="ellipsis")
         return text
 
-    def _card(self, content, width: int) -> Card:
-        return Card(content, width=width, padding=(0, 1), border_style="grey30")
+    def _card(self, content, width: int, height: int = CARD_HEIGHT) -> Card:
+        return Card(
+            content, width=width, height=height, padding=(0, 1), border_style="grey30"
+        )
 
     def _row(self, summary, names: tuple[str, ...], width: int) -> Table:
         share = (width - 2 * (len(names) - 1)) // len(names)
@@ -156,16 +157,8 @@ class OverviewPanel(Panel):
         columns = self._columns(width)
         outer = Table.grid()
         outer.add_column(width=width)
-        if summary.resources is not None:
-            outer.add_row(
-                self._text(
-                    f"System uptime {human_duration(summary.resources.uptime)} · host counters and cgroup scope shown separately",
-                    width,
-                    "bold",
-                )
-            )
         headline = (
-            f"{len(summary.alerts)} threshold notice(s)"
+            f"{len(summary.alerts)} threshold notice(s) · [n] all notices"
             if summary.alerts
             else "No thresholds exceeded"
         )
@@ -176,9 +169,22 @@ class OverviewPanel(Panel):
                 SEVERITY.get(summary.alert_severity, ("", "grey62"))[1],
             )
         )
-        for alert in summary.alerts:
-            glyph, style = SEVERITY[alert.severity]
-            outer.add_row(self._text(f"{glyph} {alert.message}", width, style))
+        # Reserve two notice rows so thresholds crossing never shift the cards.
+        for index in range(2):
+            if index == 1 and len(summary.alerts) > 2:
+                outer.add_row(
+                    self._text(
+                        f"{len(summary.alerts) - 1} more notices · [n] opens all",
+                        width,
+                        "yellow",
+                    )
+                )
+            elif index < len(summary.alerts):
+                alert = summary.alerts[index]
+                glyph, style = SEVERITY[alert.severity]
+                outer.add_row(self._text(f"{glyph} {alert.message}", width, style))
+            else:
+                outer.add_row(Text(""))
         if columns == 3:
             outer.add_row(self._row(summary, ("cpu", "memory", "gpu"), width))
             outer.add_row(self._row(summary, ("network",), width))
@@ -191,7 +197,7 @@ class OverviewPanel(Panel):
             resources.add_row(self._cpu(summary, width - 4))
             resources.add_row(Text(""))
             resources.add_row(self._memory(summary, width - 4))
-            outer.add_row(self._card(resources, width))
+            outer.add_row(self._card(resources, width, height=14))
             outer.add_row(
                 self._row(
                     summary, ("gpu", "network") if width >= 70 else ("gpu",), width
@@ -208,14 +214,13 @@ class OverviewPanel(Panel):
         )
         if width < 70:
             outer.add_row(self._row(summary, ("top memory",), width))
-        if summary.disk is not None or summary.resources is not None:
-            outer.add_row(
-                self._row(
-                    summary, ("disk", "resources") if width >= 70 else ("disk",), width
-                )
+        outer.add_row(
+            self._row(
+                summary, ("disk", "resources") if width >= 70 else ("disk",), width
             )
-            if width < 70:
-                outer.add_row(self._row(summary, ("resources",), width))
+        )
+        if width < 70:
+            outer.add_row(self._row(summary, ("resources",), width))
         return outer
 
     def _cpu(self, summary, width: int) -> Table:
@@ -245,6 +250,8 @@ class OverviewPanel(Panel):
                     sparkline(self.cpu_history, max(1, width - 7)),
                 )
             )
+        else:
+            grid.add_row(Text(""))
         return grid
 
     def _memory(self, summary, width: int) -> Table:
@@ -271,6 +278,8 @@ class OverviewPanel(Panel):
             grid.add_row(
                 self._text("Availability estimated (older kernel)", width, "grey50")
             )
+        else:
+            grid.add_row(Text(""))
         grid.add_row(
             self._text(
                 f"Swap {human_bytes(stats.swap_used)} / {human_bytes(stats.swap_total)}"
@@ -287,6 +296,8 @@ class OverviewPanel(Panel):
                     sparkline(self.memory_history, max(1, width - 7)),
                 )
             )
+        else:
+            grid.add_row(Text(""))
         return grid
 
     def _gpu(self, summary, width: int) -> Table:
@@ -294,13 +305,19 @@ class OverviewPanel(Panel):
         grid.add_column(width=width)
         grid.add_row(self._text("gpu · [4] details", width, "bold"))
         if not summary.gpu.devices:
-            grid.add_row(self._text("No supported GPU telemetry", width, "grey50"))
+            grid.add_row(
+                self._text(
+                    summary.gpu.error or "No supported GPU telemetry", width, "grey50"
+                )
+            )
             return grid
         rows = Table.grid(padding=(0, 1))
         for cells in (2, 6, 4, 5, max(1, width - 21)):
             rows.add_column(width=cells, no_wrap=True)
         grid.add_row(self._text("ID  Busy (0–100%)  Temp  VRAM", width, "grey62"))
-        for device in summary.gpu.devices:
+        devices = summary.gpu.devices
+        shown = devices[:3] if len(devices) > 4 else devices
+        for device in shown:
             util = None if device.util_gpu is None else device.util_gpu / 100
             memory = human_bytes(device.mem_used)
             if width >= 40:
@@ -313,6 +330,14 @@ class OverviewPanel(Panel):
                 self._text(memory, max(1, width - 21), "cyan"),
             )
         grid.add_row(rows)
+        if len(devices) > 4:
+            grid.add_row(
+                self._text(
+                    f"{len(devices) - len(shown)} more GPUs · [4] details",
+                    width,
+                    "grey62",
+                )
+            )
         return grid
 
     def _network(self, summary, width: int) -> Table:
@@ -325,7 +350,7 @@ class OverviewPanel(Panel):
             grid.add_row(
                 self._text("No non-loopback traffic in this sample", width, "grey50")
             )
-        for iface in summary.busy_interfaces:
+        for iface in summary.busy_interfaces[:4]:
             grid.add_row(
                 self._text(
                     f"{iface.name}  ↓ {human_rate(iface.rx_rate)}  ↑ {human_rate(iface.tx_rate)}",
@@ -353,7 +378,7 @@ class OverviewPanel(Panel):
                     "grey50",
                 )
             )
-        for item in items:
+        for item in items[:5]:
             proc = item.info
             value = human_bytes(proc.rss_bytes) if memory else f"{proc.cpu_pct:.1f}%"
             grid.add_row(self._text(f"{value:>9}  {proc.pid:>7}  {proc.name}", width))
@@ -370,6 +395,7 @@ class OverviewPanel(Panel):
         grid.add_column(width=width)
         grid.add_row(self._text("disk · [6] activity and capacity", width, "bold"))
         if summary.disk is None:
+            grid.add_row(self._text("Disk counters unavailable", width, "grey50"))
             return grid
         if summary.disk.error:
             grid.add_row(self._text(summary.disk.error, width))
@@ -393,8 +419,9 @@ class OverviewPanel(Panel):
         grid.add_column(width=width)
         grid.add_row(self._text("pressure / cgroup · [7] details", width, "bold"))
         if summary.resources is None:
+            grid.add_row(self._text("Resource counters unavailable", width, "grey50"))
             return grid
-        for pressure in summary.resources.pressure:
+        for pressure in summary.resources.pressure[:3]:
             value = f"{pressure.some.avg10:.2f}%" if pressure.some else "unavailable"
             grid.add_row(
                 self._text(f"{pressure.resource} some stalls (10s): {value}", width)

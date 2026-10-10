@@ -17,6 +17,7 @@ from .core.panel import Panel
 from .core.registry import PANELS
 from .panels.gpu import GPUPanel
 from .panels.processes import ProcessesPanel
+from .panels.overview import OverviewPanel
 from .config import Settings, config_path
 from .history import History
 from .screens import (
@@ -61,6 +62,7 @@ HELP_TEXT = """\
   [b]g[/b]        toggle compute-only GPU processes
   [b]enter / d[/b] inspect selected process or GPU job
   [b]H[/b]        expand session history
+  [b]n[/b]        open all overview threshold notices
   [b]i[/b]        explain metrics in the current panel
   [b],[/b]        saved settings
   [b]e[/b]        export a JSON snapshot (commands omitted by default)
@@ -134,6 +136,7 @@ class SysmonApp(App[None]):
         Binding("d", "process_details", "Details"),
         Binding("H", "history", "History"),
         Binding("i", "metric_help", "Explain"),
+        Binding("n", "notices", "Notices"),
         Binding("comma", "settings", "Settings"),
         Binding("e", "export", "Export"),
     ]
@@ -231,6 +234,8 @@ class SysmonApp(App[None]):
         ):
             return None
         if action == "toggle_gpu" and not isinstance(self.current, GPUPanel):
+            return None
+        if action == "notices" and not isinstance(self.current, OverviewPanel):
             return None
         if action == "process_details" and not isinstance(
             self.current, (ProcessesPanel, GPUPanel)
@@ -438,6 +443,18 @@ class SysmonApp(App[None]):
 
     def action_history(self) -> None:
         self.push_screen(HistoryScreen())
+
+    def action_notices(self) -> None:
+        panel = self.current
+        if isinstance(panel, OverviewPanel) and panel.last_summary is not None:
+            alerts = panel.last_summary.alerts
+            self.push_screen(
+                ViewerScreen(
+                    "Threshold notices · Esc closes",
+                    "\n\n".join(alert.message for alert in alerts)
+                    or "No thresholds exceeded",
+                )
+            )
 
     def action_metric_help(self) -> None:
         self.push_screen(
