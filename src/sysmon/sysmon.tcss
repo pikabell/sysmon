@@ -1,0 +1,243 @@
+/* sysmon - application chrome
+ *
+ * Base layout for panels themselves lives in core/panel.py (DEFAULT_CSS) so new
+ * panels inherit sensible sizing without touching this file.
+ */
+
+Screen {
+    background: $surface;
+}
+
+#system-header {
+    height: 1;
+    padding: 0 1;
+    background: $panel;
+}
+
+/* ---- Tab bar ----------------------------------------------------------- */
+
+#tabs {
+    height: 1;
+    background: $panel;
+    /* Without an explicit width the children each claim the full row and are
+       pushed off-screen, leaving only the first tab visible. */
+    width: 100%;
+    /* Pin the strip so a growing table cannot scroll the tabs out of view. */
+    scrollbar-size-horizontal: 0;
+}
+
+.tab {
+    width: auto;
+    min-width: 3;
+    height: 1;
+    padding: 0 1;
+    color: $text-muted;
+}
+
+.tab:hover {
+    background: $boost;
+}
+
+/* The active tab is identified by the accent underline as well as the
+   background, so it is unambiguous even on terminals with poor contrast. */
+.tab--active {
+    background: $accent 30%;
+    color: $text;
+    text-style: bold;
+}
+
+#panels {
+    height: 1fr;
+    width: 100%;
+}
+
+/* ---- Section headings -------------------------------------------------- */
+
+/* Every panel uses these for its small caps titles, so spacing is consistent. */
+.section-title {
+    color: $text-muted;
+    text-style: bold;
+    padding: 0 1;
+}
+
+/* ---- CPU ---------------------------------------------------------------- */
+
+#cpu-header {
+    height: 1;
+    padding: 0 1;
+    background: $panel;
+}
+
+#cpu-aggregate {
+    height: auto;
+    padding: 0 1;
+}
+
+#cpu-cores {
+    height: auto;
+    padding: 0 1;
+}
+
+/* ---- Memory ------------------------------------------------------------- */
+
+#mem-body {
+    height: auto;
+    padding: 0 1;
+}
+
+/* ---- Processes ---------------------------------------------------------- */
+
+#proc-filter {
+    dock: top;
+}
+
+#proc-table {
+    height: 1fr;
+}
+
+/* ---- GPU ---------------------------------------------------------------- */
+
+/* ---- Overview ---------------------------------------------------------- */
+
+#overview-body {
+    height: auto;
+    padding: 0 1;
+}
+
+#overview-scroll, #mem-scroll, #cpu-scroll {
+    height: 1fr;
+    scrollbar-size-vertical: 1;
+}
+
+/* ---- GPU ---------------------------------------------------------------- */
+
+#gpu-devices {
+    height: auto;
+    padding: 0 1;
+}
+
+#gpu-scroll {
+    height: auto;
+    min-height: 1;
+    max-height: 60%;
+    scrollbar-size-vertical: 1;
+}
+
+#gpu-note {
+    height: 1;
+    padding: 0 1;
+}
+
+#gpu-procs {
+    height: 1fr;
+}
+
+/* ---- Network ------------------------------------------------------------ */
+
+#net-header {
+    height: 1;
+    padding: 0 1;
+}
+
+#net-ifaces {
+    height: 11;
+}
+
+#net-note {
+    height: 1;
+    padding: 0 1;
+}
+
+#net-conns {
+    height: 1fr;
+}
+
+/* ---- Tables ------------------------------------------------------------- */
+
+DataTable {
+    background: transparent;
+    scrollbar-size-vertical: 1;
+}
+
+DataTable > .datatable--header {
+    background: $panel-darken-2;
+    color: $text-muted;
+    text-style: none;
+    height: 1;
+}
+
+DataTable > .datatable--cursor {
+    background: $accent 25%;
+    color: $text;
+}
+
+DataTable > .datatable--hover {
+    background: $accent 12%;
+}
+
+/* ---- Status line -------------------------------------------------------- */
+
+.statusline {
+    height: 1;
+    padding: 0 1;
+    color: $text-muted;
+    background: $panel;
+}
+
+.statusline.error {
+    color: $error;
+    background: $boost;
+}
+
+/* ---- Help overlay ------------------------------------------------------- */
+
+HelpScreen {
+    align: center middle;
+    background: $background 60%;
+}
+
+#help-box {
+    width: 74;
+    height: auto;
+    max-height: 92%;
+    padding: 1 2;
+    background: $surface;
+    border: round $accent;
+}
+
+#help-title {
+    height: auto;
+    color: $text;
+}
+
+#disk-note, #mount-note {
+    height: 1;
+    padding: 0 1;
+    color: $text-muted;
+}
+#disk-table {
+    height: 45%;
+    min-height: 3;
+}
+#mount-table { height: 1fr; }
+#resources-scroll { height: 1fr; scrollbar-size-vertical: 1; }
+#resources-body { height: auto; padding: 0 1; }
+
+ViewerScreen, HistoryScreen, SettingsScreen, ExportScreen {
+    align: center middle;
+    background: $background 60%;
+}
+.dialog {
+    width: 95%;
+    max-width: 110;
+    height: auto;
+    max-height: 92%;
+    padding: 1 2;
+    border: round $accent;
+    background: $surface;
+}
+.dialog Static { height: auto; }
+.dialog-title { text-style: bold; margin-bottom: 1; }
+.dialog-buttons { height: 3; margin-top: 1; }
+.dialog-buttons Button { margin-right: 1; }
+#history-plot { height: auto; }

@@ -1,0 +1,75 @@
+name: Linux compatibility
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install '.[test]'
+      - run: python -m unittest discover -s tests -p 'test_*.py'
+      - run: python tests/test_sources.py
+      - run: python tests/test_layout.py
+      - run: python tests/smoke.py
+      - run: sysmon --check
+
+  arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install .
+      - run: python -m unittest discover -s tests -p 'test_*.py'
+      - run: sysmon --check
+
+  distributions:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ['ubuntu:22.04', 'ubuntu:24.04', 'debian:12-slim', 'fedora:43', 'alpine:3.21']
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --build-arg BASE_IMAGE=${{ matrix.image }} -f tests/linux.Dockerfile .
+
+  package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install build
+      - run: python -m build
+      - run: python -m venv /tmp/sysmon-package
+      - run: /tmp/sysmon-package/bin/pip install dist/*.whl
+      - run: /tmp/sysmon-package/bin/sysmon --version
+      - run: /tmp/sysmon-package/bin/sysmon --check
+      - name: Test the installed wheel outside the checkout
+        run: cd /tmp && /tmp/sysmon-package/bin/python -m unittest discover -s "$GITHUB_WORKSPACE/tests" -p 'test_*.py'
+
+  static:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install ruff
+      - run: ruff check --config pyproject.toml src tests
