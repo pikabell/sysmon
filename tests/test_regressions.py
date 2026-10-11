@@ -178,7 +178,7 @@ class GPUs(unittest.TestCase):
         nvml = NVML.__new__(NVML)
         nvml._lib, nvml._handles, nvml.procs_supported = (
             object(),
-            [ctypes.c_void_p(1)],
+            [(0, ctypes.c_void_p(1))],
             True,
         )
 
@@ -210,7 +210,7 @@ class GPUs(unittest.TestCase):
         nvml = NVML.__new__(NVML)
         nvml._lib, nvml._handles, nvml.procs_supported = (
             object(),
-            [ctypes.c_void_p(1)],
+            [(0, ctypes.c_void_p(1))],
             True,
         )
         with patch.object(
@@ -223,7 +223,7 @@ class GPUs(unittest.TestCase):
         nvml = NVML.__new__(NVML)
         nvml._lib, nvml._handles, nvml.procs_supported = (
             object(),
-            [ctypes.c_void_p(1)],
+            [(0, ctypes.c_void_p(1))],
             True,
         )
 

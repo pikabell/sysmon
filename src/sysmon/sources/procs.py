@@ -89,12 +89,18 @@ def _boot_time() -> float | None:
         with open(f"{PROC}/stat") as handle:
             for line in handle:
                 if line.startswith("btime "):
-                    return float(line.split()[1])
+                    value = float(line.split()[1])
+                    if 0 <= value < float("inf"):
+                        return value
+                    break
     except (OSError, ValueError, IndexError):
         pass
     try:  # Coarse fallback: uptime is still better than nothing.
         with open(f"{PROC}/uptime") as handle:
-            return time.time() - float(handle.read().split()[0])
+            uptime = float(handle.read().split()[0])
+            value = time.time() - uptime
+            if 0 <= uptime < float("inf") and 0 <= value < float("inf"):
+                return value
     except (OSError, IndexError, ValueError):
         return None
 
@@ -219,13 +225,32 @@ class ProcSource:
         Used by other panels (e.g. the GPU process table) so a process appears with
         the same user, command and start time wherever it is shown.
         """
+        entry = self._read_entry(pid)
+        return (
+            None
+            if entry is None
+            else self._verified_info(entry, time.time(), _uptime())
+        )
+
+    @staticmethod
+    def _read_entry(pid: int) -> _Raw | None:
         try:
             with open(f"{PROC}/{pid}/stat", "rb") as handle:
-                raw = handle.read()
+                return _parse_stat(pid, handle.read())
         except OSError:
             return None
-        entry = _parse_stat(pid, raw)
-        return None if entry is None else self._decorate(entry, time.time(), _uptime())
+
+    def _verified_info(
+        self, entry: _Raw, now_wall: float, uptime: float | None
+    ) -> ProcInfo | None:
+        info = self._decorate(entry, now_wall, uptime)
+        # stat, cmdline and ownership are separate reads. A recycled PID between
+        # them must not combine the old identity with the replacement's data.
+        after = self._read_entry(entry.pid)
+        if after is None or after.starttime != entry.starttime:
+            self._cmdlines.pop(entry.pid, None)
+            return None
+        return info
 
     def sample(self) -> dict[int, ProcInfo]:
         """Full process sweep, with CPU percentages from tick deltas."""
@@ -245,15 +270,12 @@ class ProcSource:
             if not entry.name.isdigit():
                 continue
             pid = int(entry.name)
-            try:
-                with open(f"{entry.path}/stat", "rb") as handle:
-                    raw = handle.read()
-            except (OSError, ValueError):
-                continue
-            parsed = _parse_stat(pid, raw)
+            parsed = self._read_entry(pid)
             if parsed is None:
                 continue
-
+            info = self._verified_info(parsed, now_wall, uptime)
+            if info is None:
+                continue
             ticks_now[pid] = (parsed.starttime, parsed.ticks)
 
             cpu_pct = 0.0
@@ -268,7 +290,6 @@ class ProcSource:
                     # May exceed 100% for multithreaded processes.
                     cpu_pct = delta / CLOCK_TICKS / elapsed * 100.0
 
-            info = self._decorate(parsed, now_wall, uptime)
             if cpu_pct:
                 info = replace(info, cpu_pct=cpu_pct)
             table[pid] = info

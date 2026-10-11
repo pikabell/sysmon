@@ -92,6 +92,24 @@ position under UID 1000. Live source comparisons, rendered layouts, eight-panel
 navigation, static checks and the lockfile check also passed. Overview previews
 were regenerated with safe fixture data and visually reviewed.
 
+## Bug and UI audit (2026-10-11)
+
+The suite now contains **76 tests**: the existing 47, 25 collector/configuration
+regressions and four UI checks. It passes from source on Python 3.14 and against
+the installed Python 3.10 base wheel outside the checkout, without psutil.
+Live source comparisons, rendered layouts, eight-panel navigation, Ruff, lockfile
+validation and the package build also pass.
+
+The fixes cover malformed counters and settings, PID reuse during collection,
+unavailable timestamps, hybrid cgroups, inherited quotas, disappearing history
+metrics, updated table widths and NVML process ABI/allocation handling.
+[Audit notes](docs/AUDIT.md) describe each change and its verification scope.
+
+The UI adds a dark palette, contextual controls, compact footer spacing, clearer
+table selection, a denser wide overview and pinned form actions. Safe fixture
+previews cover all eight panels, history, settings and the 80-column overview.
+The [developer guide](docs/DEVELOPMENT.md) documents architecture and reproduction.
+
 ## CI
 
 `.github/workflows/test.yml` checks Python 3.10–3.14 on Ubuntu, native Ubuntu ARM64,

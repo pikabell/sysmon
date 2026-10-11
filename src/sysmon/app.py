@@ -9,6 +9,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import HorizontalScroll, VerticalScroll
 from textual.screen import ModalScreen
+from textual.theme import Theme
 from textual.widgets import ContentSwitcher, DataTable, Footer, Input, Static
 from rich.text import Text
 
@@ -129,13 +130,13 @@ class SysmonApp(App[None]):
         Binding("l", "next_panel", "Next", show=False),
         Binding("slash", "focus_filter", "Filter"),
         Binding("escape", "release_focus", "Leave filter", show=False),
-        Binding("s", "cycle_sort", "Sort by"),
+        Binding("s", "cycle_sort", "Sort"),
         Binding("S", "reverse_sort", "Reverse"),
         Binding("c", "show_sort", "Sort column", show=False),
-        Binding("g", "toggle_gpu", "GPU kind"),
-        Binding("d", "process_details", "Details"),
+        Binding("g", "toggle_gpu", "Compute"),
+        Binding("d", "process_details", "Inspect"),
         Binding("H", "history", "History"),
-        Binding("i", "metric_help", "Explain"),
+        Binding("i", "metric_help", "Metrics"),
         Binding("n", "notices", "Notices"),
         Binding("comma", "settings", "Settings"),
         Binding("e", "export", "Export"),
@@ -145,6 +146,23 @@ class SysmonApp(App[None]):
         self, settings: Settings | None = None, settings_path: Path | None = None
     ) -> None:
         super().__init__()
+        self.register_theme(
+            Theme(
+                name="sysmon-dark",
+                primary="#7aa2f7",
+                secondary="#273b55",
+                accent="#7dcfff",
+                foreground="#dbe4f0",
+                background="#101820",
+                surface="#101820",
+                panel="#1b2838",
+                boost="#ffffff",
+                success="#9ece6a",
+                warning="#e0af68",
+                error="#f7768e",
+                dark=True,
+            )
+        )
         self.settings = settings or Settings()
         self.settings_path = (
             settings_path if settings_path is not None else config_path()
@@ -156,6 +174,7 @@ class SysmonApp(App[None]):
         self.theme = self.settings.theme
         self._active_index = 0
         self._pending_panel: int | None = int(self.settings.default_panel)
+        self._uptime_value: float | None = None
 
     def open_panel_on_start(self, index: int) -> None:
         """Choose the panel to show at launch (``--panel``)."""
@@ -175,7 +194,10 @@ class SysmonApp(App[None]):
         with ContentSwitcher(initial=_panel_id(PANELS[0]), id="panels"):
             for panel_class in PANELS:
                 yield panel_class(id=_panel_id(panel_class))
-        yield Footer()
+        footer = Footer()
+        footer.compact = True
+        footer.show_command_palette = False
+        yield footer
 
     def on_mount(self) -> None:
         for panel in self.query(Panel):
@@ -232,15 +254,15 @@ class SysmonApp(App[None]):
         if action in {"focus_filter", "cycle_sort", "reverse_sort"} and not isinstance(
             self.current, ProcessesPanel
         ):
-            return None
+            return False
         if action == "toggle_gpu" and not isinstance(self.current, GPUPanel):
-            return None
+            return False
         if action == "notices" and not isinstance(self.current, OverviewPanel):
-            return None
+            return False
         if action == "process_details" and not isinstance(
             self.current, (ProcessesPanel, GPUPanel)
         ):
-            return None
+            return False
         if isinstance(self.focused, Input) and action in ("prev_panel", "next_panel"):
             return False
         return True
@@ -289,6 +311,7 @@ class SysmonApp(App[None]):
         panel.focus()
 
     def _mark_active(self) -> None:
+        self._set_uptime(self._uptime_value)
         for index, panel_class in enumerate(PANELS):
             tab = self.query_one(f"#tab-{panel_class.KEY}", Static)
             tab.update(self.tab_label(panel_class, self.size.width))
@@ -335,6 +358,7 @@ class SysmonApp(App[None]):
             self._set_uptime(None)
 
     def _set_uptime(self, value: float | None) -> None:
+        self._uptime_value = value
         self.sub_title = f"system uptime {fmt_uptime(value)}"
         if not self.screen_stack:
             return
@@ -344,6 +368,7 @@ class SysmonApp(App[None]):
         headers[0].update(
             Text.assemble(
                 ("sysmon", "bold"),
+                (f"  /  {PANELS[self._active_index].TITLE}", "bold"),
                 ("  ·  System uptime ", "grey62"),
                 (fmt_uptime(value), "cyan"),
             )

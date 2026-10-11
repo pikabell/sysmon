@@ -24,16 +24,26 @@ class Settings:
     refresh_interval: float = 1.0
     default_panel: str = "0"
     hidden_interfaces: tuple[str, ...] = ()
-    theme: str = "textual-dark"
+    theme: str = "sysmon-dark"
     history_samples: int = 600
     thresholds: Thresholds = field(default_factory=Thresholds)
 
 
 def config_path() -> Path:
-    return (
-        Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
-        / "sysmon/config.json"
-    )
+    # XDG paths must be absolute; empty/relative values mean use the default.
+    directory = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    if not directory.is_absolute():
+        directory = Path.home() / ".config"
+    return directory / "sysmon/config.json"
+
+
+def _number(value, message: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(message)
+    try:
+        return float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(message) from exc
 
 
 def validate(raw: dict) -> Settings:
@@ -42,7 +52,9 @@ def validate(raw: dict) -> Settings:
     unknown = set(raw) - set(Settings.__dataclass_fields__)
     if unknown:
         raise ValueError(f"unknown settings: {', '.join(sorted(unknown))}")
-    interval = float(raw.get("refresh_interval", 1))
+    interval = _number(
+        raw.get("refresh_interval", 1), "refresh interval must be 0.2–60 seconds"
+    )
     if not math.isfinite(interval) or not 0.2 <= interval <= 60:
         raise ValueError("refresh interval must be 0.2–60 seconds")
     panel = str(raw.get("default_panel", "0"))
@@ -53,7 +65,7 @@ def validate(raw: dict) -> Settings:
         not isinstance(item, str) or not item or len(item) > 128 for item in hidden
     ):
         raise ValueError("hidden_interfaces must be a list of interface names")
-    theme = raw.get("theme", "textual-dark")
+    theme = raw.get("theme", "sysmon-dark")
     if not isinstance(theme, str) or not theme:
         raise ValueError("theme must be a name")
     samples = raw.get("history_samples", 600)
@@ -70,8 +82,8 @@ def validate(raw: dict) -> Settings:
         raise ValueError("unknown warning threshold")
     values = asdict(Thresholds())
     for key, value in thresholds.items():
-        value = float(value)
         limit = 150 if key.startswith("gpu_") else 100
+        value = _number(value, f"{key} must be between 0 and {limit}")
         if not math.isfinite(value) or not 0 <= value <= limit:
             raise ValueError(f"{key} must be between 0 and {limit}")
         values[key] = value

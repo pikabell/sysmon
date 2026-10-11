@@ -83,6 +83,7 @@ def main(argv: list[str] | None = None) -> int:
             raw["refresh_interval"] = args.refresh
             settings = validate(raw)
         if args.export is not None:
+            destination = args.export.expanduser()
             import time
             from .core.context import SOURCES
             from .export import snapshot, write_report
@@ -91,12 +92,12 @@ def main(argv: list[str] | None = None) -> int:
             time.sleep(0.2)
             write_report(
                 snapshot(include_commands=args.include_commands),
-                args.export.expanduser(),
+                destination,
             )
             print(f"Saved {args.export}")
             return 0
         app = SysmonApp(settings, path)
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         print(f"sysmon: {exc}", file=sys.stderr)
         return 2
     if args.panel:

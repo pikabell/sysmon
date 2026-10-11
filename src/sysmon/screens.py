@@ -10,7 +10,7 @@ from pathlib import Path
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Input, Label, Select, Static
 
@@ -112,8 +112,8 @@ class HistoryScreen(ModalScreen):
             )
             names = sorted(self.app.history.series)
             yield Select(
-                [(name, name) for name in names],
-                value=names[0] if names else Select.BLANK,
+                [(Text(name), name) for name in names],
+                value=names[0] if names else Select.NULL,
                 id="history-metric",
             )
             yield Static(id="history-plot")
@@ -127,8 +127,16 @@ class HistoryScreen(ModalScreen):
 
     def _redraw(self):
         select = self.query_one("#history-metric", Select)
+        names = sorted(self.app.history.series)
+        if names != getattr(self, "_metric_names", None):
+            self._metric_names = names
+            previous = select.value
+            select.set_options([(Text(name), name) for name in names])
+            select.value = (
+                previous if previous in names else names[0] if names else Select.NULL
+            )
         name = select.value
-        if name is Select.BLANK:
+        if name is Select.NULL:
             rendered = Text(
                 "No history yet. Close this view and collect a sample first."
             )
@@ -148,54 +156,59 @@ class SettingsScreen(ModalScreen[Settings | None]):
     BINDINGS = [Binding("escape", "close", show=False, priority=True)]
 
     def compose(self) -> ComposeResult:
-        settings = self.app.settings
-        with VerticalScroll(classes="dialog"):
-            yield Static(
-                "Settings · save applies now; default panel applies next launch",
-                classes="dialog-title",
-            )
-            for name, label, value in (
-                (
-                    "refresh_interval",
-                    "Refresh interval (0.2–60 seconds)",
-                    settings.refresh_interval,
-                ),
-                ("default_panel", "Default panel (0–7)", settings.default_panel),
-                (
-                    "hidden_interfaces",
-                    "Hidden interfaces (comma separated)",
-                    ",".join(settings.hidden_interfaces),
-                ),
-                (
-                    "history_samples",
-                    "Samples retained per metric (10–3600)",
-                    settings.history_samples,
-                ),
-            ):
-                yield Label(label)
-                yield Input(str(value), id=f"setting-{name}")
-            yield Label("Theme")
-            yield Select(
-                [(name, name) for name in sorted(self.app.available_themes)],
-                value=settings.theme,
-                allow_blank=False,
-                id="setting-theme",
-            )
-            for key, value in asdict(settings.thresholds).items():
-                yield Label(
-                    {
-                        "cpu_busy": "Host CPU busy notice (%) with high load",
-                        "memory_available": "Host RAM available warning below (%)",
-                        "gpu_warm": "GPU warm notice (°C)",
-                        "gpu_hot": "GPU hot notice (°C)",
-                        "disk_used": "Filesystem used warning (%)",
-                    }[key]
-                )
-                yield Input(str(value), id=f"setting-{key}")
+        with Vertical(classes="dialog dialog-form"):
+            yield Static("Settings", classes="dialog-title")
+            with VerticalScroll(classes="dialog-fields"):
+                yield from self._fields()
             yield Static(Text(str(self.app.settings_path)), id="settings-message")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Save", id="settings-save", variant="primary")
                 yield Button("Cancel", id="settings-cancel")
+
+    def _fields(self) -> ComposeResult:
+        settings = self.app.settings
+        for name, label, value in (
+            (
+                "refresh_interval",
+                "Refresh interval (0.2–60 seconds)",
+                settings.refresh_interval,
+            ),
+            (
+                "default_panel",
+                "Startup panel (0–7, next launch)",
+                settings.default_panel,
+            ),
+            (
+                "hidden_interfaces",
+                "Hidden interfaces (comma separated)",
+                ",".join(settings.hidden_interfaces),
+            ),
+            (
+                "history_samples",
+                "Samples retained per metric (10–3600)",
+                settings.history_samples,
+            ),
+        ):
+            yield Label(label)
+            yield Input(str(value), id=f"setting-{name}")
+        yield Label("Theme")
+        yield Select(
+            [(name, name) for name in sorted(self.app.available_themes)],
+            value=settings.theme,
+            allow_blank=False,
+            id="setting-theme",
+        )
+        for key, value in asdict(settings.thresholds).items():
+            yield Label(
+                {
+                    "cpu_busy": "Host CPU busy notice (%) with high load",
+                    "memory_available": "Host RAM available warning below (%)",
+                    "gpu_warm": "GPU warm notice (°C)",
+                    "gpu_hot": "GPU hot notice (°C)",
+                    "disk_used": "Filesystem used warning (%)",
+                }[key]
+            )
+            yield Input(str(value), id=f"setting-{key}")
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "settings-cancel":
@@ -236,18 +249,22 @@ class ExportScreen(ModalScreen):
     BINDINGS = [Binding("escape", "close", show=False, priority=True)]
 
     def compose(self) -> ComposeResult:
-        with VerticalScroll(classes="dialog"):
-            yield Static("Export a fresh JSON snapshot", classes="dialog-title")
-            yield Label("Destination (an existing file will not be overwritten)")
-            yield Input(
-                str(Path.cwd() / f"sysmon-report-{datetime.now():%Y%m%d-%H%M%S}.json"),
-                id="export-path",
-            )
-            yield Checkbox(
-                "Include process commands", value=False, id="export-commands"
-            )
+        with Vertical(classes="dialog dialog-form"):
+            yield Static("Export snapshot", classes="dialog-title")
+            with VerticalScroll(classes="dialog-fields"):
+                yield Label("Destination (must be a new file)")
+                yield Input(
+                    str(
+                        Path.cwd()
+                        / f"sysmon-report-{datetime.now():%Y%m%d-%H%M%S}.json"
+                    ),
+                    id="export-path",
+                )
+                yield Checkbox(
+                    "Include process commands", value=False, id="export-commands"
+                )
             yield Static(
-                "Contains visible process names/users, metrics, mounts and socket addresses.\nCommands are omitted by default. The output file is readable only by its owner.",
+                "Local JSON, owner-only permissions. Includes names, users, mounts and socket addresses.",
                 id="export-message",
             )
             with Horizontal(classes="dialog-buttons"):
@@ -258,7 +275,13 @@ class ExportScreen(ModalScreen):
         if event.button.id == "export-cancel":
             self.dismiss()
         elif event.button.id == "export-save":
-            path = Path(self.query_one("#export-path", Input).value).expanduser()
+            try:
+                path = Path(self.query_one("#export-path", Input).value).expanduser()
+            except (ValueError, RuntimeError) as exc:
+                self.query_one("#export-message", Static).update(
+                    Text(str(exc), style="yellow")
+                )
+                return
             include = self.query_one("#export-commands", Checkbox).value
             event.button.disabled = True
             self.run_worker(self._export(path, include), exclusive=True)

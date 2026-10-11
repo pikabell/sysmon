@@ -25,6 +25,7 @@ class History:
         self.units: dict[str, str] = {}
         self._owners: list[str] = []
         self._panel_series: dict[str, set[str]] = {}
+        self._recorded: list[set[str]] = []
         self.hidden_interfaces: tuple[str, ...] = ()
 
     def add(self, name: str, value: float | None, unit: str = "%"):
@@ -35,14 +36,23 @@ class History:
         if queue.maxlen != self.limit:
             queue = self.series[name] = deque(queue, maxlen=self.limit)
         queue.append(Point(time.time(), time.monotonic(), value))
+        for recorded in self._recorded:
+            recorded.add(name)
         for owner in self._owners:
             self._panel_series.setdefault(owner, set()).add(name)
 
     def record(self, key: str, data):
         self._owners.append(key)
+        recorded: set[str] = set()
+        self._recorded.append(recorded)
         try:
             self._record(key, data)
+            # A successful snapshot can still lack a previously visible device
+            # or subsystem. Give those metrics a gap at this sampling time.
+            for name in sorted(self._panel_series.get(key, set()) - recorded):
+                self.add(name, None, self.units[name])
         finally:
+            self._recorded.pop()
             self._owners.pop()
 
     def failed(self, key: str):

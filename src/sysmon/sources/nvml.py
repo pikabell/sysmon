@@ -77,7 +77,7 @@ class NVML:
 
     def __init__(self) -> None:
         self._lib: ctypes.CDLL | None = None
-        self._handles: list[c_void_p] = []
+        self._handles: list[tuple[int, c_void_p]] = []
         self.driver_version: str | None = None
         self.error: str | None = None
         # Set once a driver tells us it does not implement the process queries.
@@ -126,8 +126,8 @@ class NVML:
                 self._call("nvmlDeviceGetHandleByIndex_v2", index, byref(handle))
                 != NVML_SUCCESS
             ):
-                break
-            self._handles.append(handle)
+                continue
+            self._handles.append((index, handle))
 
     @property
     def available(self) -> bool:
@@ -204,7 +204,7 @@ class NVML:
         if not self.available:
             return []
         out: list[GPUDevice] = []
-        for index, handle in enumerate(self._handles):
+        for index, handle in self._handles:
             util_gpu, util_mem = self._util(handle)
             mem_used, mem_total = self._memory(handle)
             power, limit = self._power(handle)
@@ -229,14 +229,11 @@ class NVML:
     # -- per-process ------------------------------------------------------
 
     def _proc_function(self, base: str):
-        # v2 and v3 share a layout for the fields we read; prefer the newer.
-        for suffix in ("_v3", "_v2"):
-            func = getattr(
-                self._lib, f"nvmlDeviceGet{base}RunningProcesses{suffix}", None
-            )
-            if func is not None:
-                return func
-        return None
+        # _ProcEntry is nvmlProcessInfo_v2_t. Some R535 drivers changed the v3
+        # array stride without changing its symbol, so v3 is unsafe with this
+        # buffer even though its first fields match. Use the stable v2 ABI;
+        # missing symbols fall back to pmon through GPUSource.
+        return getattr(self._lib, f"nvmlDeviceGet{base}RunningProcesses_v2", None)
 
     def processes(self) -> list[GPUProcess] | None:
         """Per-process GPU usage, or ``None`` when the driver does not support it.
@@ -247,8 +244,8 @@ class NVML:
         if not self.available or not self.procs_supported:
             return None
 
-        collected: dict[tuple[int, int], GPUProcess] = {}
-        for index, handle in enumerate(self._handles):
+        collected: dict[tuple[int, int, int, int], GPUProcess] = {}
+        for index, handle in self._handles:
             for kind, base in (("C", "Compute"), ("G", "Graphics")):
                 func = self._proc_function(base)
                 if func is None:
@@ -274,7 +271,15 @@ class NVML:
                     return None
                 for slot in range(count.value):
                     entry = buffer[slot]
-                    key = (int(entry.pid), index)
+                    # A PID can own separate allocations in several MIG
+                    # instances. Only compute/graphics reads of the same
+                    # instance describe an overlapping allocation.
+                    key = (
+                        int(entry.pid),
+                        index,
+                        int(entry.gpu_instance_id),
+                        int(entry.compute_instance_id),
+                    )
                     previous = collected.get(key)
                     memory = (
                         None
@@ -291,10 +296,27 @@ class NVML:
                     collected[key] = GPUProcess(
                         pid=int(entry.pid),
                         gpu_index=index,
-                        kind=kind if previous is None else "C+G",
+                        kind=kind
+                        if previous is None or previous.kind == kind
+                        else "C+G",
                         mem_bytes=memory,
                     )
-        return list(collected.values())
+        combined: dict[tuple[int, int], GPUProcess] = {}
+        for proc in collected.values():
+            key = (proc.pid, proc.gpu_index)
+            previous = combined.get(key)
+            if previous is None:
+                combined[key] = proc
+            else:
+                combined[key] = GPUProcess(
+                    proc.pid,
+                    proc.gpu_index,
+                    previous.kind if previous.kind == proc.kind else "C+G",
+                    previous.mem_bytes + proc.mem_bytes
+                    if previous.mem_bytes is not None and proc.mem_bytes is not None
+                    else None,
+                )
+        return list(combined.values())
 
 
 __all__ = [

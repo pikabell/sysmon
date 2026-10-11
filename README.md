@@ -19,8 +19,10 @@ process activity goes idle. Two reserved notice rows show threshold warnings;
 ![Overview with synthetic example data](docs/overview-150.svg)
 
 [80-column preview](docs/overview-80.svg). Previews use reproducible fixture data.
-[GPU jobs](docs/gpu.svg), [disk](docs/disk.svg), [pressure and quotas](docs/resources.svg),
-and [history](docs/history.svg) previews show the additional views.
+[CPU](docs/cpu.svg), [memory](docs/memory.svg), [processes](docs/processes.svg),
+[GPU jobs](docs/gpu.svg), [network](docs/network.svg), [disk](docs/disk.svg),
+[pressure and quotas](docs/resources.svg), [history](docs/history.svg) and
+[settings](docs/settings.svg) previews show the other views and dialogs.
 
 ## Install
 
@@ -155,7 +157,8 @@ ancestors and other containers cannot be inspected. Host counters remain labelle
 history. Only sampled panels contribute; the overview collects all these systems.
 The default retains 600 points per metric in memory, up to 256 metrics. Percentages
 use a fixed 0–100% scale (higher values clip); rates adapt to their displayed peak.
-Sampling failures remain gaps. History is not persisted or collected by a daemon.
+Sampling failures and disappeared devices remain gaps. History is not persisted
+or collected by a daemon.
 
 Notices describe configurable monitor thresholds, not a complete health diagnosis. GPU
 78/83°C defaults are generic policy, not vendor throttling limits. A GPU doing
@@ -189,6 +192,9 @@ Press `,` to save settings to `$XDG_CONFIG_HOME/sysmon/config.json`, or
 `~/.config/sysmon/config.json` by default. Loading settings creates no files.
 `--config /path/config.json` selects a different file. Invalid settings give a clear
 error. Saved intervals affect all panels; the default panel applies next launch.
+Empty or relative `XDG_CONFIG_HOME` values fall back to `~/.config`.
+The default theme is `sysmon-dark`; saved themes and `NO_COLOR` are respected.
+Settings and export buttons remain visible while the fields scroll.
 
 Exports are explicit local writes, never uploads. `e` opens a destination dialog;
 `--export PATH` saves without opening the UI. Existing files are not overwritten.
@@ -204,7 +210,7 @@ uv run --extra test python -m unittest discover -s tests -p 'test_*.py'
 uv run --extra test python tests/test_sources.py
 uv run --extra test python tests/test_layout.py
 uv run --extra test python tests/smoke.py
-uv run python tests/preview.py
+env -u NO_COLOR uv run python tests/preview.py
 uv build
 ```
 
@@ -213,5 +219,9 @@ threads left by cancelled pollers. Warm-up finishes before visible polling start
 Only the visible panel polls. Tables update incrementally. Sources live in
 `src/sysmon/sources`; views live in `src/sysmon/panels`. Telemetry readers never
 write to procfs/sysfs or send process signals.
+
+[Developer guide](docs/DEVELOPMENT.md): architecture, collector rules, previews and
+installed-wheel checks. [Audit notes](docs/AUDIT.md): corrected bugs and UI changes.
+[Release validation](RELEASE.md): compatibility evidence and CI gates.
 
 Licensed under the [MIT License](LICENSE). Copyright 2026 Arjun Badola.

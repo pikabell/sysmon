@@ -78,7 +78,7 @@ class TableSync:
                 zip((c for c, _ in self.columns), cells)
             ):
                 if previous is None or previous[index] != value:
-                    self.table.update_cell(row_key, column, value)
+                    self.table.update_cell(row_key, column, value, update_width=True)
             self._rendered[key] = cells
 
         self._order = order

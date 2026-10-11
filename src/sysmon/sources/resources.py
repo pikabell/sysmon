@@ -91,6 +91,7 @@ class ResourceSource:
             if not 0 <= uptime < float("inf"):
                 raise ValueError("invalid uptime")
         except (OSError, ValueError, IndexError) as exc:
+            uptime = None
             error = str(exc)
         return ResourceSnapshot(
             uptime, pressure_snapshot(self.proc / "pressure"), self._cgroup(), error
@@ -133,6 +134,7 @@ class ResourceSource:
                     members[controller] = membership
             mounts = read_mounts(self.proc / "self/mountinfo")
         except (OSError, ValueError) as exc:
+            self._cpu_previous = None
             return CgroupStats(errors=(f"cgroups unavailable: {exc}",))
         try:
             host_cpus = len(os.sched_getaffinity(0))
@@ -145,8 +147,13 @@ class ResourceSource:
                     host_memory = int(row.split()[1]) * 1024
         except (OSError, ValueError, IndexError):
             pass
+        v2_mounts = sorted(
+            (mount for mount in mounts if mount.fs == "cgroup2" and "" in members),
+            key=lambda mount: len(PurePosixPath(mount.root).parts),
+        )
         v2 = next(
-            (mount for mount in mounts if mount.fs == "cgroup2" and "" in members), None
+            (mount for mount in v2_mounts if locate(mount, members[""]) is not None),
+            v2_mounts[0] if v2_mounts else None,
         )
         quota, memory_limits, used, usage = [], [], None, None
         version, path, pressure = None, None, ()
@@ -154,6 +161,7 @@ class ResourceSource:
         if v2:
             location = locate(v2, members[""])
             if location is None:
+                self._cpu_previous = None
                 return CgroupStats(
                     version="v2",
                     path=members[""],
@@ -162,7 +170,7 @@ class ResourceSource:
             version, path, cpu_path = "v2", members[""], str(location)
             for parent in ancestors(location, Path(v2.path)):
                 value = read(parent / "cpu.max")
-                if value:
+                if value is not None:
                     try:
                         limit, period = value.split()
                         if int(period) <= 0:
@@ -191,22 +199,30 @@ class ResourceSource:
                     if usage < 0:
                         raise ValueError()
                 except (ValueError, KeyError):
+                    usage = None
                     errors.append("cpu.stat: usage unavailable")
             used = number(location / "memory.current")
             pressure = tuple(
                 read_pressure(location / f"{resource}.pressure", resource)
                 for resource in ("cpu", "memory", "io")
             )
-        else:
+        if not v2 or any(
+            controller in members
+            for controller in ("cpu", "cpuacct", "memory", "cpuset")
+        ):
             locations = {}
             for controller in ("cpu", "cpuacct", "memory", "cpuset"):
                 mount = next(
                     (
                         m
-                        for m in mounts
+                        for m in sorted(
+                            mounts,
+                            key=lambda mount: len(PurePosixPath(mount.root).parts),
+                        )
                         if m.fs == "cgroup"
                         and controller in m.options.split(",")
                         and controller in members
+                        and locate(m, members[controller]) is not None
                     ),
                     None,
                 )
@@ -214,18 +230,48 @@ class ResourceSource:
                     location = locate(mount, members[controller])
                     if location is not None:
                         locations[controller] = (location, Path(mount.path))
-            if not locations:
+            if not locations and not v2:
                 self._cpu_previous = None
                 return CgroupStats(errors=("no readable cgroup hierarchy exposed",))
-            version = "v1"
-            path = members.get("cpu", members.get("memory"))
+            version = "hybrid" if v2 else "v1"
+            path = (
+                "v2:"
+                + members[""]
+                + "; "
+                + "; ".join(
+                    f"{controller}:{members[controller]}"
+                    for controller in ("cpu", "cpuacct", "memory", "cpuset")
+                    if controller in members
+                )
+                if v2
+                else members.get("cpu", members.get("memory"))
+            )
+            # Controllers bound to v1 constrain this monitor even when a v2
+            # systemd hierarchy is also mounted. Missing legacy mounts must not
+            # look like unlimited capacity, nor mix usage from another hierarchy.
+            for controller, prefix in (
+                ("cpu", "cpu.cfs_quota_us"),
+                ("memory", "memory.limit_in_bytes"),
+                ("cpuset", "cpuset"),
+            ):
+                if controller in members and controller not in locations:
+                    errors.append(f"{prefix}: hierarchy outside visible mounts")
+            if "cpu" in members or "cpuacct" in members:
+                usage, cpu_path = None, None
+            if "memory" in members:
+                used = None
             if "cpu" in locations:
                 location, boundary = locations["cpu"]
                 for parent in ancestors(location, boundary):
                     limit = number(parent / "cpu.cfs_quota_us")
-                    period = number(parent / "cpu.cfs_period_us")
-                    if limit is not None and period and limit > 0:
-                        quota.append(limit / period)
+                    if limit is not None:
+                        period = number(parent / "cpu.cfs_period_us", required=True)
+                        if limit <= 0:
+                            errors.append("cpu.cfs_quota_us: invalid quota")
+                        elif period is None or period <= 0:
+                            errors.append("cpu.cfs_period_us: invalid period")
+                        else:
+                            quota.append(limit / period)
             if "cpuacct" in locations:
                 location, _ = locations["cpuacct"]
                 cpu_path = str(location)

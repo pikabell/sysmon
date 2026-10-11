@@ -187,7 +187,9 @@ class OverviewPanel(Panel):
                 outer.add_row(Text(""))
         if columns == 3:
             outer.add_row(self._row(summary, ("cpu", "memory", "gpu"), width))
-            outer.add_row(self._row(summary, ("network",), width))
+            outer.add_row(
+                self._row(summary, ("top cpu", "top memory", "network"), width)
+            )
         elif columns == 2:
             outer.add_row(self._row(summary, ("cpu", "memory"), width))
             outer.add_row(self._row(summary, ("gpu", "network"), width))
@@ -205,13 +207,14 @@ class OverviewPanel(Panel):
             )
             if width < 70:
                 outer.add_row(self._row(summary, ("network",), width))
-        outer.add_row(
-            self._row(
-                summary,
-                ("top cpu", "top memory") if width >= 70 else ("top cpu",),
-                width,
+        if columns != 3:
+            outer.add_row(
+                self._row(
+                    summary,
+                    ("top cpu", "top memory") if width >= 70 else ("top cpu",),
+                    width,
+                )
             )
-        )
         if width < 70:
             outer.add_row(self._row(summary, ("top memory",), width))
         outer.add_row(

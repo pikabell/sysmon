@@ -41,7 +41,7 @@ Screen {
 /* The active tab is identified by the accent underline as well as the
    background, so it is unambiguous even on terminals with poor contrast. */
 .tab--active {
-    background: $accent 30%;
+    background: $primary 25%;
     color: $text;
     text-style: bold;
 }
@@ -89,7 +89,12 @@ Screen {
 
 #proc-filter {
     dock: top;
+    height: 3;
+    margin: 0 1;
+    border: tall $panel;
 }
+#proc-filter:focus { border: tall $accent; }
+#proc-summary { height: 1; padding: 0 1; color: $text-muted; }
 
 #proc-table {
     height: 1fr;
@@ -145,6 +150,8 @@ Screen {
 
 #net-ifaces {
     height: 11;
+    max-height: 35%;
+    min-height: 3;
 }
 
 #net-note {
@@ -164,19 +171,25 @@ DataTable {
 }
 
 DataTable > .datatable--header {
-    background: $panel-darken-2;
-    color: $text-muted;
-    text-style: none;
+    background: $panel;
+    color: $text;
+    text-style: bold;
     height: 1;
 }
 
 DataTable > .datatable--cursor {
-    background: $accent 25%;
+    background: $boost 8%;
     color: $text;
 }
+DataTable:focus > .datatable--cursor {
+    background: $primary 30%;
+    text-style: bold;
+}
+DataTable > .datatable--odd-row { background: $panel 30%; }
+DataTable > .datatable--even-row { background: $surface; }
 
 DataTable > .datatable--hover {
-    background: $accent 12%;
+    background: $primary 12%;
 }
 
 /* ---- Status line -------------------------------------------------------- */
@@ -220,7 +233,8 @@ HelpScreen {
     color: $text-muted;
 }
 #disk-table {
-    height: 45%;
+    height: 5;
+    max-height: 45%;
     min-height: 3;
 }
 #mount-table { height: 1fr; }
@@ -237,11 +251,16 @@ ViewerScreen, HistoryScreen, SettingsScreen, ExportScreen {
     height: auto;
     max-height: 92%;
     padding: 1 2;
-    border: round $accent;
-    background: $surface;
+    border: round $primary;
+    background: $panel;
 }
 .dialog Static { height: auto; }
 .dialog-title { text-style: bold; margin-bottom: 1; }
 .dialog-buttons { height: 3; margin-top: 1; }
 .dialog-buttons Button { margin-right: 1; }
+.dialog-form { height: 90%; max-height: 90%; }
+.dialog-fields { height: 1fr; scrollbar-size-vertical: 1; scrollbar-gutter: stable; }
+.dialog-fields Label { margin-top: 1; color: $text-muted; }
+.dialog-fields Input { border: tall $surface; }
+.dialog-fields Input:focus { border: tall $accent; }
 #history-plot { height: auto; }

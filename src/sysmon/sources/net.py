@@ -174,14 +174,25 @@ class NetSource:
         error_counts: dict[str, tuple[int, int]] = {}
 
         for line in lines:
-            name, _, rest = line.partition(":")
+            name, separator, rest = line.rpartition(":")
             fields = rest.split()
-            if len(fields) < 16:
+            if not separator or len(fields) < 16:
+                self._iface_error = (
+                    "Some interface counters are malformed or incomplete"
+                )
                 continue
             name = name.strip()
-            rx_bytes, rx_packets = int(fields[0]), int(fields[1])
-            tx_bytes, tx_packets = int(fields[8]), int(fields[9])
-            rx_errors, tx_errors = int(fields[2]), int(fields[10])
+            try:
+                counters = [int(value) for value in fields[:16]]
+                if not name or any(value < 0 for value in counters):
+                    raise ValueError("invalid interface counters")
+            except ValueError:
+                self._iface_error = (
+                    "Some interface counters are malformed or incomplete"
+                )
+                continue
+            rx_bytes, rx_packets, rx_errors = counters[:3]
+            tx_bytes, tx_packets, tx_errors = counters[8:11]
             prior_errors = self._prev_errors.get(name, (rx_errors, tx_errors))
             error_counts[name] = (rx_errors, tx_errors)
             current[name] = (rx_bytes, tx_bytes, rx_packets, tx_packets)
@@ -267,19 +278,21 @@ class NetSource:
                 fields = line.split()
                 if len(fields) < 10:
                     continue
-                local_raw, local_port = fields[1].rsplit(":", 1)
-                remote_raw, remote_port = fields[2].rsplit(":", 1)
+                try:
+                    local_raw, local_port = fields[1].rsplit(":", 1)
+                    remote_raw, remote_port = fields[2].rsplit(":", 1)
+                    local_port, remote_port = int(local_port, 16), int(remote_port, 16)
+                    if not (0 <= local_port <= 65535 and 0 <= remote_port <= 65535):
+                        continue
+                except ValueError:
+                    continue
                 pid = owners.get(fields[9])
                 username, command = self._describe(pid)
                 out.append(
                     ConnInfo(
                         proto=proto,
-                        local=_endpoint(
-                            _decode_addr(local_raw, ipv6), int(local_port, 16)
-                        ),
-                        remote=_endpoint(
-                            _decode_addr(remote_raw, ipv6), int(remote_port, 16)
-                        ),
+                        local=_endpoint(_decode_addr(local_raw, ipv6), local_port),
+                        remote=_endpoint(_decode_addr(remote_raw, ipv6), remote_port),
                         status=TCP_STATES.get(fields[3], fields[3])
                         if proto == "tcp"
                         else "-",

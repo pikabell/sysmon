@@ -34,6 +34,8 @@ def _totals(line: str) -> tuple[int, ...]:
     ``irq`` and ``softirq``. Guest time is already accounted for in ``user``.
     """
     values = [int(field) for field in line.split()[1:]]
+    if len(values) < 4 or any(value < 0 for value in values):
+        raise ValueError("invalid CPU counters")
 
     def at(index: int) -> int:
         return values[index] if index < len(values) else 0
@@ -127,10 +129,16 @@ class CPUSource:
             self.model = _read_model()
         current: dict[str, tuple[int, ...]] = {}
         for line in _read_text("/proc/stat").splitlines():
-            label = line.split()[0]
-            if not label.startswith("cpu"):
+            fields = line.split()
+            if not fields:
+                continue
+            label = fields[0]
+            if label != "cpu" and not (label.startswith("cpu") and label[3:].isdigit()):
                 break  # CPU lines always come first; stop at cpu_mhz / intr
-            current[label] = _totals(line)
+            try:
+                current[label] = _totals(line)
+            except ValueError:
+                continue
 
         if "cpu" not in current:
             raise OSError("CPU counters unavailable: /proc/stat is not readable")

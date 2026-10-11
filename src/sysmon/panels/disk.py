@@ -65,17 +65,23 @@ class DiskPanel(Panel):
         rows = {
             disk.name: (
                 Text(disk.name),
-                human_rate(disk.read_rate),
-                human_rate(disk.write_rate),
-                number(disk.reads_per_second),
-                number(disk.writes_per_second),
-                number(None if disk.busy is None else disk.busy * 100),
-                str(disk.in_flight),
+                Text(human_rate(disk.read_rate), style="cyan", justify="right"),
+                Text(human_rate(disk.write_rate), style="magenta", justify="right"),
+                Text(number(disk.reads_per_second), justify="right"),
+                Text(number(disk.writes_per_second), justify="right"),
+                Text(
+                    number(None if disk.busy is None else disk.busy * 100),
+                    justify="right",
+                ),
+                Text(str(disk.in_flight), justify="right"),
                 "partition" if disk.partition else "device",
             )
             for disk in snapshot.devices
         }
         self._disks.sync(rows, sorted(rows))
+        self.query_one("#disk-table", DataTable).styles.height = max(
+            3, min(12, len(rows) + 2)
+        )
         thresholds = self.settings.thresholds
         rows = {}
         for fs in snapshot.filesystems:
@@ -90,17 +96,21 @@ class DiskPanel(Panel):
             rows[fs.path] = (
                 Text(fs.path),
                 fs.fs,
-                human_bytes(fs.total),
-                human_bytes(fs.used),
-                human_bytes(fs.available),
+                Text(human_bytes(fs.total), justify="right"),
+                Text(human_bytes(fs.used), justify="right"),
+                Text(human_bytes(fs.available), justify="right"),
                 Text(
                     number(percent),
                     style="yellow"
                     if percent is not None and percent >= thresholds.disk_used
                     else "cyan",
+                    justify="right",
                 ),
-                number(
-                    fs.inode_used / fs.inode_total * 100 if fs.inode_total else None
+                Text(
+                    number(
+                        fs.inode_used / fs.inode_total * 100 if fs.inode_total else None
+                    ),
+                    justify="right",
                 ),
                 Text(fs.error or ""),
             )
@@ -108,6 +118,10 @@ class DiskPanel(Panel):
         self.query_one("#disk-note", Static).update(
             Text(
                 snapshot.error
-                or "Device activity · busy time is not an SSD saturation measure"
+                or (
+                    f"Device activity · {len(snapshot.devices)} "
+                    f"{'device' if len(snapshot.devices) == 1 else 'devices'} "
+                    "· [i] metric definitions"
+                )
             )
         )

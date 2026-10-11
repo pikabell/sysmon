@@ -7,7 +7,7 @@ from textual.widgets import Static
 
 from ..core.context import SOURCES
 from ..core.panel import Panel
-from ..core.render import bar_cells, human_bytes, fmt_uptime
+from ..core.render import bar_cells, human_bytes
 
 
 def pressure_table(pressures) -> Table:
@@ -56,14 +56,11 @@ class ResourcesPanel(Panel):
         snapshot = self._latest
         grid = Table.grid(padding=(1, 0))
         grid.add_column(width=max(25, self.size.width - 4))
-        grid.add_row(
-            Text(f"System uptime · {fmt_uptime(snapshot.uptime)}", style="bold")
-        )
         if snapshot.uptime_error:
             grid.add_row(Text(snapshot.uptime_error))
         grid.add_row(
             Text(
-                "System pressure · share of time stalled, not utilisation", style="bold"
+                "System pressure · time stalled", style="bold"
             )
         )
         grid.add_row(pressure_table(snapshot.pressure))
@@ -114,7 +111,7 @@ class ResourcesPanel(Panel):
         )
         grid.add_row(
             Text(
-                "Scope is this cgroup and descendants, not every container. Host CPU/RAM counters\nremain separately labelled. Ancestors hidden by a namespace cannot be inspected.",
+                "Scope: this cgroup and descendants. Capacity includes visible ancestor limits.\nHost CPU and RAM readings are shown in panels 1 and 2.",
                 style="grey62",
             )
         )
