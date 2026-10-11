@@ -12,6 +12,8 @@ import sys
 import time
 import socket
 import struct
+import os
+from pathlib import Path
 
 try:
     import psutil
@@ -37,7 +39,9 @@ def check(name: str, condition: bool, detail: str = "") -> None:
 def test_start_times() -> None:
     """Start times must match psutil's independent create_time()."""
     source = ProcSource()
+    uptime_before = float(Path("/proc/uptime").read_text().split()[0])
     table = source.sample()
+    uptime_after = float(Path("/proc/uptime").read_text().split()[0])
     sample = sorted(table)[::17]
     worst = 0.0
     for pid in sample:
@@ -52,12 +56,17 @@ def test_start_times() -> None:
         worst < 1 / CLOCK_TICKS,
         f"{len(sample)} pids, max divergence {worst:.4f}s",
     )
-    # Age must agree with start time, not with monitor uptime.
-    pid = sorted(table)[0]
+    # Age uses uptime, while btime is a whole-second wall-clock timestamp.
+    # Compare with independent kernel ticks and bracket the collection window.
+    pid = os.getpid()
     info = table[pid]
+    fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+    started = int(fields[19]) / CLOCK_TICKS
     check(
-        "age is consistent with start time",
-        abs((time.time() - info.start_ts) - info.age) < 1.0,
+        "age matches kernel uptime and start ticks",
+        max(0, uptime_before - started) - 0.02
+        <= info.age
+        <= max(0, uptime_after - started) + 0.02,
         f"pid {pid}: age {info.age:.1f}s",
     )
 

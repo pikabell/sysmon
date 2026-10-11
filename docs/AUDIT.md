@@ -48,3 +48,7 @@ and [RELEASE.md](../RELEASE.md). Fixture tests cover MIG accounting and hybrid
 cgroups; they do not establish behavior on real MIG, AMD or Intel hardware.
 Live NVIDIA checks use four Quadro RTX 5000 devices. Permission-restricted counters
 and hidden cgroup ancestors remain unavailable by design.
+
+The live process-age check compares kernel start ticks with uptime readings before
+and after collection. Comparing age with wall time could fail on CI because the
+kernel boot timestamp is rounded to whole seconds and wall clocks can adjust.
